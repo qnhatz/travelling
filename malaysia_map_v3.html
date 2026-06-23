@@ -1,0 +1,233 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+#wrap{display:flex;height:600px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;font-family:var(--font-sans)}
+#side{width:290px;min-width:290px;display:flex;flex-direction:column;background:var(--color-background-primary);border-right:0.5px solid var(--color-border-tertiary);overflow:hidden}
+#tabs{display:flex;overflow-x:auto;padding:8px 8px 0;gap:3px;border-bottom:0.5px solid var(--color-border-tertiary);flex-shrink:0}
+#tabs::-webkit-scrollbar{display:none}
+.tab{padding:5px 8px;font-size:11px;font-weight:500;border-radius:5px 5px 0 0;cursor:pointer;color:var(--color-text-secondary);white-space:nowrap;border:0.5px solid transparent;border-bottom:none;transition:all .15s}
+.tab.on{background:var(--color-background-secondary);border-color:var(--color-border-tertiary);color:var(--color-text-primary);margin-bottom:-0.5px}
+#daytotal{padding:6px 10px;font-size:11px;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);flex-shrink:0;display:flex;justify-content:space-between;align-items:center}
+#daytotal span{font-weight:500;color:var(--color-text-primary)}
+#list{flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:3px}
+.stop{padding:7px 9px;border-radius:7px;border:0.5px solid var(--color-border-tertiary);cursor:pointer;transition:background .1s}
+.stop:hover{background:var(--color-background-secondary)}
+.stop.on{background:var(--color-background-info);border-color:var(--color-border-info)}
+.st{font-size:10px;color:var(--color-text-secondary)}
+.stop.on .st{color:var(--color-text-info)}
+.sn{font-size:12px;font-weight:500;color:var(--color-text-primary);line-height:1.3;margin-top:1px}
+.stop.on .sn{color:var(--color-text-info)}
+.sd{font-size:10px;color:var(--color-text-secondary);margin-top:2px;line-height:1.4}
+.stop.on .sd{color:var(--color-text-info)}
+.cost-row{display:flex;gap:5px;margin-top:4px;align-items:center;flex-wrap:wrap}
+.badge-rm{font-size:10px;font-weight:500;padding:2px 6px;border-radius:4px;background:#e8f4fd;color:#185fa5}
+.badge-vnd{font-size:10px;font-weight:500;padding:2px 6px;border-radius:4px;background:#f0fff0;color:#1a7a1a}
+.badge-free{font-size:10px;font-weight:500;padding:2px 6px;border-radius:4px;background:#f1f1f1;color:#666}
+.stop.on .badge-rm{background:rgba(255,255,255,0.3);color:#fff}
+.stop.on .badge-vnd{background:rgba(255,255,255,0.2);color:#e0ffe0}
+.stop.on .badge-free{background:rgba(255,255,255,0.2);color:#fff}
+#mapbox{flex:1;position:relative}
+#map{width:100%;height:100%}
+#fsbtn{position:absolute;top:8px;right:8px;z-index:1000;background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:7px;padding:5px 10px;cursor:pointer;font-size:12px;color:var(--color-text-primary);display:flex;align-items:center;gap:5px}
+#fsbtn:hover{background:var(--color-background-secondary)}
+</style>
+
+<h2 class="sr-only">Bản đồ lịch trình Malaysia 5 ngày 26–30/06/2025 với chi phí từng điểm</h2>
+
+<div id="wrap">
+  <div id="side">
+    <div id="tabs"></div>
+    <div id="daytotal">Tổng ngày: <span id="dtval">—</span></div>
+    <div id="list"></div>
+  </div>
+  <div id="mapbox">
+    <button id="fsbtn">
+      <i class="ti ti-arrows-maximize" aria-hidden="true"></i>
+      <span id="fslbl">Toàn màn hình</span>
+    </button>
+    <div id="map"></div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+var RATE = 6400;
+var DAY_COLORS = ['#e63946','#f4a261','#2a9d8f','#457b9d','#6a4c93'];
+
+function vnd(rm){
+  if(!rm) return null;
+  return (rm * RATE).toLocaleString('vi-VN') + ' ₫';
+}
+
+var D = [
+  {tab:'26/06',title:'KLIA2 → Malacca',stops:[
+    {t:'10:35',n:'✈️ KLIA2 — Hạ cánh & mua SIM',d:'Ra cửa Arrivals → mua SIM MyLink/Maxis ngay kios cửa ra',rm:null,free:false,per:'',lat:2.7453,lng:101.6849},
+    {t:'11:45',n:'🚌 Gateway@KLIA2 — Lên bus Malacca',d:'Level 1 Transportation Hub. Transnasional/Starmart',rm:25,per:'/người',lat:2.7462,lng:101.6993},
+    {t:'14:30',n:'🚌 Melaka Sentral — Xuống bus',d:'Grab về Kingston Hotel 9, 108 Jln Bunga Raya',rm:10,per:'/chuyến',lat:2.2209,lng:102.2500},
+    {t:'15:00',n:'🏨 Kingston Hotel 9 @ Jonker St',d:'Nhận phòng. Cách Jonker Walk ~5 phút đi bộ. Agoda #1734963020',rm:null,note:'849K VND/đêm',lat:2.1992,lng:102.2515},
+    {t:'16:00',n:'🏛️ Dutch Square — St. Paul — A\'Famosa',d:'Đi bộ ~10 phút từ KS. 3 điểm cách nhau <200m',rm:0,lat:2.1944,lng:102.2490},
+    {t:'19:00',n:'🌙 Jonker Walk + Thuyền sông',d:'Chợ đêm T6–CN 18:00–23:00. River Cruise mua vé tại bến',rm:30,per:'/người',lat:2.1948,lng:102.2484}
+  ]},
+  {tab:'27/06',title:'Malacca → Muar',stops:[
+    {t:'06:30',n:'🕌 Melaka Straits Mosque — Bình minh',d:'Grab khứ hồi từ KS ~15 phút mỗi chiều. Mặc áo kín',rm:20,per:'/chuyến',lat:2.1791,lng:102.2491},
+    {t:'09:00',n:'🍚 Chicken Rice Ball — Ăn sáng',d:'Kedai Kopi Chung Wah / Hoe Kee gần Jonker Walk',rm:25,per:'/người',lat:2.1953,lng:102.2472},
+    {t:'11:00',n:'🏛️ Baba & Nyonya Heritage Museum',d:'Check-out KS → đi bộ ~10 phút. Mang tai nghe nghe audio guide',rm:18,per:'/người',lat:2.1953,lng:102.2467},
+    {t:'13:30',n:'🚌 Melaka Sentral → Bus đi Muar',d:'Grab từ bảo tàng ~10 phút (~10 RM). Bus ~1 tiếng (45km)',rm:15,per:'/người',lat:2.2209,lng:102.2500},
+    {t:'15:00',n:'🚌 Muar Bus Terminal — Xuống bus',d:'104 Jalan Maharani. Grab về Muari Boutique Hotel ~5 phút',rm:5,per:'/chuyến',lat:2.0507,lng:102.5700},
+    {t:'15:30',n:'🏨 Muari Boutique Hotel',d:'63-3 Jalan Ali. Khu trung tâm, đi bộ được khắp nơi. Agoda #1734367526',rm:null,note:'910K VND/đêm',lat:2.0446,lng:102.5668},
+    {t:'16:30',n:'🌅 Tanjung Emas Park — Hoàng hôn',d:'Đi bộ ~10 phút từ KS. Đẹp nhất ~17:30. Street Art xung quanh',rm:0,lat:2.0481,lng:102.5539},
+    {t:'19:00',n:'🍜 Muar Avenue — Otak-Otak + Mee Bandung',d:'Gần KS ~5 phút đi bộ. Phải thử Otak-Otak lá chuối!',rm:20,per:'/người',lat:2.0449,lng:102.5681}
+  ]},
+  {tab:'28/06',title:'Muar → KL',stops:[
+    {t:'09:00',n:'🌿 Gunung Ledang National Park',d:'Grab khứ hồi từ Muar ~45 phút. ⚠️ CN đông, đi sớm 9h!',rm:60,per:'/người',lat:2.3417,lng:102.6173},
+    {t:'13:00',n:'🍽️ Ăn trưa + lấy hành lý',d:'Quay về Muar, ăn trưa gần KS rồi lấy đồ',rm:20,per:'/người',lat:2.0446,lng:102.5668},
+    {t:'14:30',n:'🚌 Muar Bus Terminal → Bus về KL',d:'⚠️ ĐẶT TRƯỚC qua Easybook/RedBus! CN rất dễ cháy vé',rm:35,per:'/người',lat:2.0507,lng:102.5700},
+    {t:'17:30',n:'🚌 TBS — Terminal Bersepadu Selatan',d:'Xuống TBS → Grab về Hotel Transit KL ~20 phút',rm:15,per:'/chuyến',lat:3.0781,lng:101.7111},
+    {t:'18:30',n:'🏨 Hotel Transit KL',d:'42 Jalan Pudu, Bukit Bintang. Đêm 3 & 4. Cọc 50 RM khi check-in',rm:null,note:'1,645K VND/2 đêm',lat:3.1461,lng:101.7014},
+    {t:'19:00',n:'🏙️ Petronas Twin Towers — KLCC',d:'MRT/Grab ~10 phút. Ngắm từ KLCC Park miễn phí. Đẹp lúc 19:30',rm:0,lat:3.1575,lng:101.7116},
+    {t:'20:30',n:'🦞 Jalan Alor Food Street',d:'Đi bộ ~10 phút từ KLCC. Cánh gà Belachan, hải sản tươi',rm:40,per:'/người',lat:3.1461,lng:101.7093}
+  ]},
+  {tab:'29/06',title:'Kuala Lumpur',stops:[
+    {t:'08:00',n:'🪨 Batu Caves — Bậc thang cầu vồng',d:'KTM Seremban Line → ga Batu Caves ~35 phút. Đến sớm tránh nóng!',rm:6,per:'/người',lat:3.2379,lng:101.6840},
+    {t:'12:00',n:'🍛 Ăn trưa Nasi Lemak',d:'Village Park Restaurant (Damansara) hoặc Madam Kwan\'s',rm:20,per:'/người',lat:3.1550,lng:101.7050},
+    {t:'14:00',n:'🏛️ Merdeka Square — Sultan Abdul Samad',d:'Grab ~10 phút. Đi trước 9h hoặc sau 16h tránh nóng',rm:0,lat:3.1491,lng:101.6937},
+    {t:'15:00',n:'🌳 KL Forest Eco Park — Cầu treo',d:'Đi bộ ~10 phút từ Merdeka. Mở 8:00–16:30, đóng T6',rm:10,per:'/người',lat:3.1506,lng:101.7023},
+    {t:'18:00',n:'🎨 Kwai Chai Hong — Chinatown',d:'Grab ~10 phút từ Eco Park. Lorong Panggung. Ăn tối quanh đây',rm:35,per:'/người',lat:3.1415,lng:101.6976},
+    {t:'21:30',n:'🏨 Hotel Transit KL (đêm 4)',d:'Grab ~5 phút từ Chinatown. 42 Jalan Pudu',rm:null,note:'đã tính đêm 3',lat:3.1461,lng:101.7014}
+  ]},
+  {tab:'30/06',title:'KL → KLIA2 → VN',stops:[
+    {t:'08:30',n:'🫓 Bukit Bintang — Ăn sáng Roti Canai',d:'TG\'s Bistro gần Bukit Bintang. Thử Roti Tissue siêu dài!',rm:15,per:'/người',lat:3.1461,lng:101.7093},
+    {t:'10:15',n:'🚆 KL Sentral — Bắt KLIA Ekspres',d:'Grab từ KS ~10 phút (~12 RM). Tàu chạy mỗi 15–30 phút',rm:35,per:'/người',lat:3.1342,lng:101.6861},
+    {t:'11:00',n:'✈️ KLIA2 — Check-in & Bay về VN',d:'AirAsia Row R/S. Làm thủ tục trước 12:40. Bay AK-522 lúc 14:40',rm:null,lat:2.7453,lng:101.6849}
+  ]}
+];
+
+var map, markers=[], polylines=[], curDay=0, curStop=0, fs=false;
+
+function calcDayTotal(day){
+  var total=0;
+  D[day].stops.forEach(function(s){
+    if(s.rm && s.rm > 0) total += s.rm;
+  });
+  return total;
+}
+
+function costBadge(s){
+  if(s.note) return '<span class="badge-free">'+s.note+'</span>';
+  if(s.rm === 0) return '<span class="badge-free">Miễn phí</span>';
+  if(!s.rm) return '';
+  return '<span class="badge-rm">'+s.rm+' RM'+(s.per||'')+'</span>'
+       +'<span class="badge-vnd">~'+(s.rm*RATE).toLocaleString('vi-VN')+' ₫'+(s.per||'')+'</span>';
+}
+
+function popupContent(s){
+  var cost = '';
+  if(s.note) cost='<br><b style="color:#888">'+s.note+'</b>';
+  else if(s.rm===0) cost='<br><b style="color:#2a9d8f">Miễn phí</b>';
+  else if(s.rm) cost='<br><b style="color:#185fa5">'+s.rm+' RM'+(s.per||'')+'</b> <span style="color:#1a7a1a">~'+(s.rm*RATE).toLocaleString('vi-VN')+' ₫'+(s.per||'')+'</span>';
+  return '<b style="font-size:13px">'+s.n+'</b>'
+    +'<br><span style="font-size:11px;color:#888">'+s.t+'</span>'
+    + cost
+    +'<br><span style="font-size:11px">'+s.d+'</span>';
+}
+
+function initMap(){
+  map=L.map('map',{zoomControl:true}).setView([2.8,102.2],7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap',maxZoom:19
+  }).addTo(map);
+}
+
+function makeIcon(color,num){
+  return L.divIcon({className:'',
+    html:'<div style="background:'+color+';color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">'+num+'</div>',
+    iconSize:[24,24],iconAnchor:[12,12]});
+}
+function makeActiveIcon(color){
+  return L.divIcon({className:'',
+    html:'<div style="background:'+color+';color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)">★</div>',
+    iconSize:[32,32],iconAnchor:[16,16]});
+}
+
+function clearMap(){
+  markers.forEach(function(m){map.removeLayer(m)});
+  polylines.forEach(function(p){map.removeLayer(p)});
+  markers=[];polylines=[];
+}
+
+function renderMap(){
+  clearMap();
+  var stops=D[curDay].stops;
+  var color=DAY_COLORS[curDay];
+  var latlngs=stops.map(function(s){return[s.lat,s.lng]});
+  if(latlngs.length>1){
+    polylines.push(L.polyline(latlngs,{color:color,weight:3,opacity:0.75,dashArray:'7,5'}).addTo(map));
+  }
+  stops.forEach(function(s,i){
+    var icon=i===curStop?makeActiveIcon(color):makeIcon(color,i+1);
+    var m=L.marker([s.lat,s.lng],{icon:icon}).addTo(map);
+    m.bindPopup(popupContent(s),{maxWidth:240});
+    m.on('click',function(){selStop(i);});
+    markers.push(m);
+  });
+  var cur=stops[curStop];
+  map.setView([cur.lat,cur.lng],15,{animate:true});
+  if(markers[curStop]) markers[curStop].openPopup();
+}
+
+function selDay(i){curDay=i;curStop=0;renderTabs();renderDayTotal();renderList();renderMap();}
+function selStop(i){
+  curStop=i;
+  renderList();
+  var color=DAY_COLORS[curDay];
+  markers.forEach(function(m,idx){m.setIcon(idx===i?makeActiveIcon(color):makeIcon(color,idx+1));});
+  var s=D[curDay].stops[i];
+  map.setView([s.lat,s.lng],16,{animate:true});
+  if(markers[i]) markers[i].openPopup();
+}
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=D.map(function(d,i){
+    return '<div class="tab'+(i===curDay?' on':'')+'" onclick="selDay('+i+')">'+d.tab+'</div>';
+  }).join('');
+}
+
+function renderDayTotal(){
+  var t=calcDayTotal(curDay);
+  var el=document.getElementById('dtval');
+  el.textContent=t>0? t+' RM (~'+(t*RATE).toLocaleString('vi-VN')+' ₫) / người' : '—';
+}
+
+function renderList(){
+  document.getElementById('list').innerHTML=D[curDay].stops.map(function(s,i){
+    return '<div class="stop'+(i===curStop?' on':'')+'" onclick="selStop('+i+')">'
+      +'<div class="st">'+s.t+'</div>'
+      +'<div class="sn">'+s.n+'</div>'
+      +'<div class="sd">'+s.d+'</div>'
+      +'<div class="cost-row">'+costBadge(s)+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+document.getElementById('fsbtn').addEventListener('click',function(){
+  fs=!fs;
+  var w=document.getElementById('wrap');
+  var lbl=document.getElementById('fslbl');
+  var ic=document.querySelector('#fsbtn i');
+  if(fs){
+    w.style.cssText='position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;border-radius:0;border:none;display:flex';
+    lbl.textContent='Thu nhỏ';ic.className='ti ti-arrows-minimize';
+  } else {
+    w.style.cssText='';lbl.textContent='Toàn màn hình';ic.className='ti ti-arrows-maximize';
+  }
+  setTimeout(function(){map.invalidateSize();},300);
+});
+
+renderTabs();
+renderDayTotal();
+renderList();
+initMap();
+renderMap();
+</script>
